@@ -75,6 +75,18 @@ fn render_metrics(options: &Options) -> Result<String, server::BoxError> {
             output_stderr_str
         );
 
+        // Without this check a failing wg (not installed properly, missing permissions,
+        // unknown interface) would produce an empty but successful scrape.
+        if !output.status.success() {
+            return Err(format!(
+                "wg show {} dump failed ({}): {}",
+                interface_to_handle,
+                output.status,
+                output_stderr_str.trim()
+            )
+            .into());
+        }
+
         // the output of wg show is different if we use all or we specify an interface.
         // In the first case the first column will be the interface name. In the second case
         // the interface name will be omitted. We need to compensate for the skew somehow (one
