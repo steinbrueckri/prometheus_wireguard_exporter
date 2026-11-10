@@ -30,9 +30,6 @@ pub enum ExporterError {
     #[error("Hyper error: {}", e)]
     Hyper { e: hyper::Error },
 
-    #[error("http error: {}", e)]
-    Http { e: http::Error },
-
     #[error("UTF-8 error: {}", e)]
     UTF8 { e: std::string::FromUtf8Error },
 
@@ -67,12 +64,6 @@ impl From<std::io::Error> for ExporterError {
 impl From<hyper::Error> for ExporterError {
     fn from(e: hyper::Error) -> Self {
         ExporterError::Hyper { e }
-    }
-}
-
-impl From<http::Error> for ExporterError {
-    fn from(e: http::Error) -> Self {
-        ExporterError::Http { e }
     }
 }
 

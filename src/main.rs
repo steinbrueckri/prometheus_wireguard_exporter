@@ -1,8 +1,6 @@
 use anyhow::Context;
 use clap::{crate_authors, crate_name, crate_version, value_parser, Arg};
-use hyper::{Body, Request};
 use log::{debug, info, trace};
-use prometheus_exporter_base::prelude::{Authorization, ServerOptions};
 use std::env;
 mod options;
 use options::Options;
@@ -13,16 +11,13 @@ mod friendly_description;
 pub use friendly_description::*;
 use wireguard::WireGuard;
 mod exporter_error;
+mod server;
 mod wireguard_config;
-use prometheus_exporter_base::render_prometheus;
 use std::net::IpAddr;
 use std::sync::Arc;
 use wireguard_config::peer_entry_hashmap_try_from;
 
-async fn perform_request(
-    _req: Request<Body>,
-    options: Arc<Options>,
-) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+fn render_metrics(options: &Options) -> Result<String, server::BoxError> {
     let interfaces_to_handle = match &options.interfaces {
         Some(interfaces_str) => interfaces_str.clone(),
         None => vec!["all".to_owned()],
@@ -105,7 +100,7 @@ async fn perform_request(
     }
 
     if let Some(wg_accumulator) = wg_accumulator {
-        Ok(wg_accumulator.render_with_names(peer_entry_hashmap.as_ref(), &options))
+        Ok(wg_accumulator.render_with_names(peer_entry_hashmap.as_ref(), options))
     } else {
         panic!();
     }
@@ -225,15 +220,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     info!("starting exporter on http://{}/metrics", addr);
 
-    let server_options = ServerOptions {
-        addr,
-        authorization: Authorization::None,
-    };
-
-    render_prometheus(server_options, options, |request, options| {
-        Box::pin(perform_request(request, options))
-    })
-    .await;
+    server::serve(addr, Arc::new(options), render_metrics)
+        .await
+        .with_context(|| format!("failed to serve on {}", addr))?;
 
     Ok(())
 }
