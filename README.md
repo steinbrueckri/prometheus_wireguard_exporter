@@ -91,8 +91,8 @@ docker build -t mindflavor/prometheus_wireguard_exporter https://github.com/Mind
     ```
 
     💁 If you encounter errors, please try updating your rust installation with `rustup update`.
-    The code should compile with any relatively recent, 2018-compliant rustc version.
-    As a frame of reference, the last release was built using the Rust Docker image using `rustc 1.53.0 (53cb7b09b 2021-06-17)`.
+    The code should compile with a recent stable rustc version.
+    As a frame of reference, it was last verified with `rustc 1.96.0`.
 
 1. Run the program
 
@@ -316,6 +316,33 @@ Most of the other systemd hardening options won't work because they block sudo. 
 wireguard_exporter ALL=(root) NOPASSWD: /usr/bin/wg
 ```
 
+Running it without root and without sudo, bound to a single address:
+
+`wg show` only needs the `CAP_NET_ADMIN` capability, so systemd can grant it to an unprivileged user. The listen address restricts the exporter to one interface (here the address of an internal interface), so the metrics are not reachable from anywhere else.
+
+```ini
+[Unit]
+Description=Prometheus WireGuard Exporter
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
+Environment=PROMETHEUS_WIREGUARD_EXPORTER_ADDRESS=10.0.0.1
+ExecStart=/usr/local/bin/prometheus_wireguard_exporter
+# The exporter exits if the listen address is not available yet (ie the interface is still down).
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Do not use the `-a` (prepend sudo) option with this unit. Reading peer names with `-n` requires the dynamic user to have read access to the given files.
+
 If you're interested in more hardening, you can analyze the unit with:
 
 ```
@@ -343,6 +370,9 @@ cargo build
 cargo test
 # Run clippy to lint
 cargo clippy
+# Or use the just recipes, "just ci" runs the same checks as the pipeline
+just build
+just ci
 # Build the Docker image
 docker build -t mindflavor/prometheus_wireguard_exporter .
 ```
