@@ -110,7 +110,7 @@ pub(crate) type PeerEntryHashMap<'a> = HashMap<&'a str, PeerEntry<'a>>;
 
 pub(crate) fn peer_entry_hashmap_try_from(
     txt: &str,
-) -> Result<PeerEntryHashMap, PeerEntryParseError> {
+) -> Result<PeerEntryHashMap<'_>, PeerEntryParseError> {
     debug!("txt == {}", txt);
     let mut hm = HashMap::new();
 
