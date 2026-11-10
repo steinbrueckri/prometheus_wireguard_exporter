@@ -1,6 +1,6 @@
 ARG BUILDPLATFORM=linux/amd64
 
-ARG ALPINE_VERSION=3.14
+ARG ALPINE_VERSION=3.24
 ARG RUST_VERSION=latest
 
 FROM --platform=${BUILDPLATFORM} rust:${RUST_VERSION} AS base
@@ -69,11 +69,12 @@ RUN echo "Setting variables for ${TARGETPLATFORM:=linux/amd64}" && \
     echo "${MUSL}" | tee /tmp/musl && \
     echo "${RUSTTARGET}" | tee /tmp/rusttarget
 
+# The toolchain lives in its own prefix: copying it over / breaks on base
+# images with a merged /usr, where /bin and /lib are symlinks.
 RUN MUSL="$(cat /tmp/musl)" && \
-    wget -qO- "https://musl.cc/$MUSL-cross.tgz" | tar -xzC /tmp && \
-    rm "/tmp/$MUSL-cross/usr" && \
-    cp -fr /tmp/"$MUSL"-cross/* / && \
-    rm -rf "/tmp/$MUSL-cross"
+    mkdir /opt/musl-cross && \
+    wget -qO- "https://musl.cc/$MUSL-cross.tgz" | tar -xzC /opt/musl-cross --strip-components=1
+ENV PATH="/opt/musl-cross/bin:${PATH}"
 
 RUN rustup target add "$(cat /tmp/rusttarget)"
 
@@ -130,5 +131,5 @@ RUN adduser prometheus-wireguard-exporter -s /bin/sh -D -u 1000 1000 && \
 RUN apk add --update -q --no-cache wireguard-tools-wg sudo
 USER prometheus-wireguard-exporter
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/prometheus_wireguard_exporter"]
-CMD [ "-a" ]
+CMD [ "-a", "true" ]
 COPY --from=build --chown=prometheus-wireguard-exporter /tmp/binary ./prometheus_wireguard_exporter
